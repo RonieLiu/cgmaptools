@@ -69,89 +69,103 @@ def CGmapToRegion (CGmap_fn, region_fn):
         print ("\n[Error]:\n\t File cannot be open: %s" % region_fn)
         exit(-1)
     #
-    line_c = CGMAP.readline()
-    line_r = REGION.readline()
+    line_cg_map = CGMAP.readline()
+    line_region = REGION.readline()
     #
-    mC = 0
-    count = 0
-    NmC = 0
-    NC = 0
+    mC_sum = 0  # cg_map文件中和region文件中染色体位置有overlap的且 NC_cg_map > 0的cg_map的行中 ( NmC_cg_map / NC_cg_map )  的和
+
+    #cg_map_line_count的值是连续行符合这个条件的数量 chr_id_cg_map == chr_id_region && pos_start_region <= chr_cg_map <= pos_end_region && NC_cg_map > 0
+    #  其实就是 cg_map染色体位置有overlap的且 NC_cg_map > 0的cg_map的行数
+    cg_map_line_count = 0
+
+    NmC_sum_cg_map = 0 # cg_map文件中和region文件中染色体位置有overlap的且 NC_cg_map > 0的cg_map的行中 NmC_cg_map  的和
+    NC_sum_cg_map = 0 # cg_map文件中和region文件中染色体位置有overlap的且 NC_cg_map > 0的cg_map的行中 NC_cg_map  的和
     #
     try :
-        chr_r, pos_r1, pos_r2 = line_r.strip().split()[0:3]
+        chr_region, pos_start_region, pos_end_region = line_region.strip().split()[0:3]
     except ValueError :
         print("\n[Error]:\n\t File [ %s ] may have wrong number of columns." % region_fn)
         exit(-1)
     #
-    while line_c and line_r :
-        #print "\t"+line_c, "\t"+line_r
+    while line_cg_map and line_region :
+        #print "\t"+line_cg_map, "\t"+line_region
         #print "========"
         try :
-            chr_c, nuc_c, pos_c, pattern_c, dinuc_c, methyl_c, NmC_c, NC_c = line_c.strip().split()
+            chr_cg_map, nuc_cg_map, pos_cg_map, pattern_cg_map, dinuc_cg_map, methyl_cg_map, NmC_cg_map, NC_cg_map = line_cg_map.strip().split()
         except ValueError :
             print("\n[Error]:\n\t File [ %s ] may have wrong number of columns." % CGmap_fn)
             exit(-1)
         #
         try :
-            chr_r, pos_r1, pos_r2 = line_r.strip().split()[0:3]
+            chr_region, pos_start_region, pos_end_region = line_region.strip().split()[0:3]
         except ValueError :
             print("\n[Error]:\n\t File [ %s ] may have wrong number of columns." % region_fn)
             exit(-1)
         #
-        #print chr_r, pos_r1, pos_r2
-        key_c = Get_key(chr_c)
-        key_r = Get_key(chr_r)
-        if key_c < key_r :
-            line_c = CGMAP.readline()
-        elif key_c > key_r :
-            if count > 0 :
-                print ("%s\t%s\t%s\t%.4f\t%d\t%.4f\t%d" % (chr_r, pos_r1, pos_r2, mC/count, count, float(NmC)/NC, NC) )
+        #print chr_region, pos_start_region, pos_end_region
+        chr_id_cg_map = Get_key(chr_cg_map)
+        chr_id_region = Get_key(chr_region)
+        if chr_id_cg_map < chr_id_region :
+            # cg_map中的chr比region中的chr更小，这一行的cg map不处理，继续读入下一行的cg map,
+            line_cg_map = CGMAP.readline()
+        elif chr_id_cg_map > chr_id_region :
+            # count不再累加
+            if cg_map_line_count > 0 :
+                # 输出结果中的行
+                print ("%s\t%s\t%s\t%.4f\t%d\t%.4f\t%d" % (chr_region, pos_start_region, pos_end_region, mC_sum/cg_map_line_count, cg_map_line_count, float(NmC_sum_cg_map)/NC_sum_cg_map, NC_sum_cg_map) )
             else :
-                print ("%s\t%s\t%s\tNA\t%d\tNA\t%d" % (chr_r, pos_r1, pos_r2, count, NC) )
+                # 输出结果的行，count不大于0的，第4列和第6列的值是NA
+                print ("%s\t%s\t%s\tNA\t%d\tNA\t%d" % (chr_region, pos_start_region, pos_end_region, cg_map_line_count, NC_sum_cg_map) )
             #
             # init
-            mC = 0
-            count = 0
-            NmC = 0
-            NC = 0
+            mC_sum = 0 # # ( NmC_cg_map / NC_cg_map )  的和
+            cg_map_line_count = 0
+            NmC_sum_cg_map = 0
+            NC_sum_cg_map = 0
             # do the next
-            line_r = REGION.readline()
-        else : # chr_c == chr_r
-            if int(pos_c) < int(pos_r1) :
-                line_c = CGMAP.readline()
-            elif int(pos_c) > int(pos_r2) :
-                if count > 0 :
-                    print ("%s\t%s\t%s\t%.4f\t%d\t%.4f\t%d" % (chr_r, pos_r1, pos_r2, mC/count, count, float(NmC)/NC, NC) )
+            # 继续读入下一行的region, cg_map还在这一行
+            line_region = REGION.readline()
+        else : # chr_cg_map == chr_region
+            if int(pos_cg_map) < int(pos_start_region) :
+                line_cg_map = CGMAP.readline()
+            elif int(pos_cg_map) > int(pos_end_region) :
+                if cg_map_line_count > 0 :
+                    # 输出结果中的行
+                    print ("%s\t%s\t%s\t%.4f\t%d\t%.4f\t%d" % (chr_region, pos_start_region, pos_end_region, mC_sum/cg_map_line_count, cg_map_line_count, float(NmC_sum_cg_map)/NC_sum_cg_map, NC_sum_cg_map) )
                 else :
-                    print ("%s\t%s\t%s\tNA\t%d\tNA\t%d" % (chr_r, pos_r1, pos_r2, count, NC) )
+                    # 输出结果的行，count不大于0的，第4列和第6列的值是NA
+                    print ("%s\t%s\t%s\tNA\t%d\tNA\t%d" % (chr_region, pos_start_region, pos_end_region, cg_map_line_count, NC_sum_cg_map) )
                 #
                 # init
-                mC = 0
-                count = 0
-                NmC = 0
-                NC = 0
-                line_r = REGION.readline()
-            else : # pos_r1 <= chr_c <= pos_r2
-                NC_c = int(NC_c)
-                if NC_c > 0 :
-                    mC = mC + ( float(NmC_c) / NC_c )
-                    count = count + 1
-                    NmC = NmC + int(NmC_c)
-                    NC = NC + int(NC_c)
+                mC_sum = 0
+                cg_map_line_count = 0
+                NmC_sum_cg_map = 0
+                NC_sum_cg_map = 0
+                line_region = REGION.readline()
+            else : # pos_start_region <= chr_cg_map <= pos_end_region
+                NC_cg_map = int(NC_cg_map)
+                if NC_cg_map > 0 :
+                    mC_sum = mC_sum + ( float(NmC_cg_map) / NC_cg_map )
+                    #  chr_id_cg_map == chr_id_region  && pos_start_region <= chr_cg_map <= pos_end_region && NC_cg_map > 0
+                    cg_map_line_count = cg_map_line_count + 1
+                    NmC_sum_cg_map = NmC_sum_cg_map + int(NmC_cg_map)
+                    NC_sum_cg_map = NC_sum_cg_map + int(NC_cg_map)
                 #
-                line_c = CGMAP.readline()
+                line_cg_map = CGMAP.readline()
             #
         #
     # End for reading files
     #
-    while line_r :
-        if count > 0 :
-            print ("%s\t%s\t%s\t%.2f\t%d\t%.2f\t%d" % (chr_r, pos_r1, pos_r2, mC/count, count, float(NmC)/NC, NC) )
+    while line_region :
+        if cg_map_line_count > 0 :
+            # 输出结果中的行
+            print ("%s\t%s\t%s\t%.2f\t%d\t%.2f\t%d" % (chr_region, pos_start_region, pos_end_region, mC_sum/cg_map_line_count, cg_map_line_count, float(NmC_sum_cg_map)/NC_sum_cg_map, NC_sum_cg_map) )
         else :
-            print ("%s\t%s\t%s\tNA\t%d\tNA\t%d" % (chr_r, pos_r1, pos_r2, count, NC) )
+            # 输出结果的行，count不大于0的，第4列和第6列的值是NA
+            print ("%s\t%s\t%s\tNA\t%d\tNA\t%d" % (chr_region, pos_start_region, pos_end_region, cg_map_line_count, NC_sum_cg_map) )
         #
         # do the next
-        line_r = REGION.readline()
+        line_region = REGION.readline()
     #
     REGION.close()
     if CGMAP is not sys.stdin:
